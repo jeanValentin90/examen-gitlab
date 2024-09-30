@@ -1,0 +1,34 @@
+replicaCount: 1
+
+usersService:
+  image:
+    repository: jeanvalentin90/users
+    tag: latest
+  service:
+    type: NodePort
+    port: 8000  
+    targetPort: 8000
+    nodePort: 30015
+
+ordersService:
+  image:
+    repository: jeanvalentin90/orders
+    tag: latest
+  service:
+    type: NodePort
+    port: 8001 
+    targetPort: 8000
+    nodePort: 30016
+
+gatewayService:
+  image:
+    repository: jeanvalentin90/gateway
+    tag: latest
+  service:
+    type: NodePort
+    port: 8002
+    targetPort: 8000
+    nodePort: 30017
+
+persistentVolume:
+  storage: 1Gi

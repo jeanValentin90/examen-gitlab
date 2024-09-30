@@ -1,0 +1,10 @@
+{
+	"auths": {
+		"https://index.docker.io/v1/": {
+			"auth": "amVhbnZhbGVudGluOTA6QjhwZ290eWIh"
+		},
+		"registry.gitlab.com": {
+			"auth": "amVhbi52YWxlbnRpbkBvdXRsb29rLmZyOmdscGF0LUFwaFl5YTJHUWUyeldyMm1lcnRp"
+		}
+	}
+}

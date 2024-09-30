@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-service
+  template:
+    metadata:
+      labels:
+        app: orders-service
+    spec:
+      containers:
+        - name: orders-service
+          image: {{ .Values.ordersService.image.repository }}:{{ .Values.ordersService.image.tag }}
+          command: ["uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: {{ .Values.ordersService.service.port }}
+

@@ -1,0 +1,216 @@
+variables:
+  # The domain used for the live deploy_prodment
+  KUBE_NAMESPACE_dev: dtse-dev
+  KUBE_NAMESPACE_qa: dtse-qa
+  KUBE_NAMESPACE_staging: dtse-staging
+  KUBE_NAMESPACE_prod: dtse-prod
+  IP_DEV: 192.168.1.133
+  IP_QA: 192.168.1.133
+  IP_STAGING: 192.168.1.133
+  IP_PROD: 192.168.1.133
+  NODEPORT_DEV: 30007
+  NODEPORT_QA: 30017
+  NODEPORT_STAGING: 30027
+  NODEPORT_PROD: 30037 
+
+image:
+  name: "python:3.11-alpine"
+  entrypoint: ["/bin/sh", "-c"]
+
+stages:
+  - test
+  - build
+  - push
+  - deploy_dev
+  - deploy_qa
+  - deploy_staging
+  - deploy_prod
+
+
+test:
+  stage: test
+  image: python:latest
+  before_script:
+    # Show docker daemon info (optional, good for debugging)
+    # - sudo apt install python3-pip -y
+  script:
+    - sudo apt-get install -y python3-pip
+    - pip install fastapi
+
+# Étape pour builder les images Docker
+build_images:
+  stage: build
+  script:
+    - docker build -t $DOCKER_HUB_USERNAME/gateway:latest ./gateway
+    - docker build -t $DOCKER_HUB_USERNAME/orders:latest ./orders
+    - docker build -t $DOCKER_HUB_USERNAME/users:latest ./users
+
+push_images:
+  stage: push
+  script:
+    - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_PASSWORD
+    - docker push $DOCKER_HUB_USERNAME/gateway:latest
+    - docker push $DOCKER_HUB_USERNAME/orders:latest
+    - docker push $DOCKER_HUB_USERNAME/users:latest
+  dependencies:
+    - build_images
+
+stop_dev:
+  stage: deploy_dev
+  variables:
+    NAMESPACE: $KUBE_NAMESPACE_dev
+  when: manual
+  # Don't stop the "review" for master branch or tags,
+  # it is only for branches (so PRs (most of the time))
+  environment:
+    name: dev-$CI_BUILD_REF_NAME
+    action: stop
+  script:
+    - sudo helm uninstall app -n $NAMESPACE
+
+stop_qa:
+  stage: deploy_qa
+  variables:
+    NAMESPACE: $KUBE_NAMESPACE_qa
+  when: manual
+  # Don't stop the "review" for master branch or tags,
+  # it is only for branches (so PRs (most of the time))
+  environment:
+    name: qa-$CI_BUILD_REF_NAME
+    action: stop
+  script:
+    - sudo helm uninstall app -n $NAMESPACE
+
+stop_staging:
+  stage: deploy_staging
+  variables:
+    NAMESPACE: $KUBE_NAMESPACE_staging
+  when: manual
+  # Don't stop the "review" for master branch or tags,
+  # it is only for branches (so PRs (most of the time))
+  environment:
+    name: staging-$CI_BUILD_REF_NAME
+    action: stop
+  script:
+    - sudo helm uninstall app -n $NAMESPACE
+
+deploy_dev:
+  # Use the official docker image.
+  image: docker:latest
+  environment:
+    name: dev-$CI_BUILD_REF_NAME
+    url: http://$IP_DEV:$NODEPORT_DEV/docs
+    on_stop: stop_dev
+  stage: deploy_dev
+  variables:
+    NAMESPACE: $KUBE_NAMESPACE_dev
+
+  services:
+    - docker:dind
+  # Default branch leaves tag empty (= latest tag)
+  # All other branches are tagged with the escaped branch name (commit ref slug)
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - echo "cat"
+    - cat $KUBE_CONFIG > .kube/config
+    - echo "cp"
+    - cp h_app/values.yaml values.yml
+    - echo "cat value"
+    - cat values.yml
+    - echo "debut execute helm"
+    - sudo helm upgrade --install h-app h_app/ --values=values.yml --namespace $NAMESPACE
+    - echo "fin   execute helm"
+
+
+deploy_qa:
+  # Use the official docker image.
+  image: docker:latest
+  environment:
+    name: qa-$CI_BUILD_REF_NAME
+    url: http://$IP_DEV:$NODEPORT_QA/docs
+    on_stop: stop_qa
+  stage: deploy_qa
+  variables:
+    NAMESPACE: $KUBE_NAMESPACE_qa
+
+  services:
+    - docker:dind
+  # Default branch leaves tag empty (= latest tag)
+  # All other branches are tagged with the escaped branch name (commit ref slug)
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - echo "cat"
+    - cat $KUBE_CONFIG > .kube/config
+    - echo "cp"
+    - cp h_app/values_qa.yaml values.yml
+    - echo "cat value"
+    - cat values.yml
+    - echo "debut execute helm"
+    - sudo helm upgrade --install h-app h_app/ --values=values.yml --namespace $NAMESPACE
+    - echo "fin   execute helm"
+
+
+deploy_staging:
+  # Use the official docker image.
+  image: docker:latest
+  environment:
+    name: staging-$CI_BUILD_REF_NAME
+    url: http://$IP_DEV:$NODEPORT_STAGING/docs
+    on_stop: stop_staging
+  stage: deploy_staging
+  variables:
+    NAMESPACE: $KUBE_NAMESPACE_staging
+
+  services:
+    - docker:dind
+  # Default branch leaves tag empty (= latest tag)
+  # All other branches are tagged with the escaped branch name (commit ref slug)
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - echo "cat"
+    - cat $KUBE_CONFIG > .kube/config
+    - echo "cp"
+    - cp h_app/values_staging.yaml values.yml
+    - echo "cat value"
+    - cat values.yml
+    - echo "debut execute helm"
+    - sudo helm upgrade --install h-app h_app/ --values=values.yml --namespace $NAMESPACE
+    - echo "fin   execute helm"
+
+
+deploy_prod:
+  # Use the official docker image.
+  image: docker:latest
+  when: manual  
+  only:
+    - main
+  environment:
+    name: prod-$CI_BUILD_REF_NAME
+    url: http://$IP_DEV:$NODEPORT_PROD/docs
+  stage: deploy_prod
+  variables:
+    NAMESPACE: $KUBE_NAMESPACE_prod
+
+  services:
+    - docker:dind
+  # Default branch leaves tag empty (= latest tag)
+  # All other branches are tagged with the escaped branch name (commit ref slug)
+  script:
+    - rm -Rf .kube
+    - mkdir .kube
+    - ls
+    - echo "cat"
+    - cat $KUBE_CONFIG > .kube/config
+    - echo "cp"
+    - cp h_app/values_prod.yaml values.yml
+    - echo "cat value"
+    - cat values.yml
+    - echo "debut execute helm"
+    - sudo helm upgrade --install h-app h_app/ --values=values.yml --namespace $NAMESPACE
+    - echo "fin   execute helm"
